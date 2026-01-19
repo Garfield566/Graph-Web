@@ -238,6 +238,7 @@ sin(x)
 e^(-x)
 ln(x)
 x^2 + y^2
+x^2 + y^2 + z^2 (4D avec couleur)
 
 Formes géométriques :
 cercle_trigo(45)
@@ -254,8 +255,9 @@ cube()"></textarea>
             <div class="instructions">
                 <h3>Syntaxe supportée :</h3>
                 <ul>
-                    <li><strong>Fonctions :</strong> <code>x^2</code>, <code>sin(x)</code>, <code>cos(x)</code>, <code>e^x</code>, <code>ln(x)</code></li>
+                    <li><strong>Fonctions 2D :</strong> <code>x^2</code>, <code>sin(x)</code>, <code>cos(x)</code>, <code>e^x</code>, <code>ln(x)</code></li>
                     <li><strong>Surfaces 3D :</strong> <code>x^2 + y^2</code></li>
+                    <li><strong>Graphes 4D :</strong> <code>x^2 + y^2 + z^2</code> (couleur = 4ème dimension)</li>
                     <li><strong>Cercle trigo :</strong> <code>cercle_trigo(45)</code>, <code>cercle_trigo_complet()</code></li>
                     <li><strong>Triangles :</strong> <code>triangle_rectangle(30, sin)</code>, <code>triangle(3,4,5)</code></li>
                     <li><strong>Formes :</strong> <code>polygone(6)</code>, <code>cube()</code>, <code>pyramide()</code></li>
@@ -283,6 +285,7 @@ Copiez le code et collez-le dans Obsidian avec le plugin TikZJax installé."></t
         // ========================================
         // GÉNÉRATEUR DE GRAPHIQUES TIKZ
         // Version JavaScript (sans serveur)
+        // CORRIGÉ: samples=15 pour 3D, support 4D
         // ========================================
 
         function generateGraphics() {
@@ -640,6 +643,7 @@ ${edges}${vertices}
 
         // ========================================
         // GÉNÉRATEUR DE FONCTIONS MATHÉMATIQUES
+        // CORRIGÉ: samples=15 pour 3D, support 4D
         // ========================================
 
         function generateFunction(expr) {
@@ -647,6 +651,7 @@ ${edges}${vertices}
             let cleanExpr = expr.trim();
 
             // Détecter les variables
+            const hasZ = /\bz\b/.test(cleanExpr);
             const hasY = /\by\b/.test(cleanExpr);
             const hasX = /\bx\b/.test(cleanExpr);
 
@@ -689,8 +694,18 @@ ${edges}${vertices}
                 domainMax = 1.4;
             }
 
+            // ========================================
+            // GRAPHE 4D (x, y, z -> w en couleur)
+            // ========================================
+            if (hasZ && hasY && hasX) {
+                return generateScatter4D(tikzExpr, cleanExpr, domainMin, domainMax);
+            }
+
+            // ========================================
+            // GRAPHE 3D (x, y -> z)
+            // CORRIGÉ: samples=15
+            // ========================================
             if (hasY) {
-                // Fonction 3D
                 return `\`\`\`tikz
 \\usepackage{pgfplots}
 \\pgfplotsset{compat=1.16}
@@ -708,7 +723,7 @@ ${edges}${vertices}
 ]
 \\addplot3[
     surf,
-    samples=20,
+    samples=15,
     domain=${domainMin}:${domainMax},
     y domain=${domainMin}:${domainMax}
 ] {${tikzExpr}};
@@ -717,7 +732,9 @@ ${edges}${vertices}
 \\end{document}
 \`\`\``;
             } else {
-                // Fonction 2D
+                // ========================================
+                // GRAPHE 2D (x -> y)
+                // ========================================
                 return `\`\`\`tikz
 \\usepackage{pgfplots}
 \\pgfplotsset{compat=1.16}
@@ -740,6 +757,102 @@ ${edges}${vertices}
 \\end{document}
 \`\`\``;
             }
+        }
+
+        // ========================================
+        // GÉNÉRATEUR GRAPHE 4D (SCATTER AVEC COLORBAR)
+        // Fonction: w = f(x, y, z)
+        // Visualisation: points 3D avec couleur = w
+        // ========================================
+
+        function generateScatter4D(tikzExpr, originalExpr, domainMin, domainMax) {
+            // Génère un scatter plot 3D où la 4ème dimension est représentée par la couleur
+            const samplesPerAxis = 5; // 5×5×5 = 125 points
+
+            // Calculer les valeurs de w pour trouver min/max
+            let wMin = Infinity;
+            let wMax = -Infinity;
+            const points = [];
+
+            // Préparer l'expression pour évaluation JavaScript
+            let jsExpr = originalExpr
+                .replace(/\^/g, '**')
+                .replace(/sin\(/g, 'Math.sin(')
+                .replace(/cos\(/g, 'Math.cos(')
+                .replace(/tan\(/g, 'Math.tan(')
+                .replace(/sqrt\(/g, 'Math.sqrt(')
+                .replace(/exp\(/g, 'Math.exp(')
+                .replace(/ln\(/g, 'Math.log(')
+                .replace(/log\(/g, 'Math.log10(')
+                .replace(/abs\(/g, 'Math.abs(');
+
+            // Générer les points
+            const step = (domainMax - domainMin) / (samplesPerAxis - 1);
+
+            for (let i = 0; i < samplesPerAxis; i++) {
+                for (let j = 0; j < samplesPerAxis; j++) {
+                    for (let k = 0; k < samplesPerAxis; k++) {
+                        const x = domainMin + i * step;
+                        const y = domainMin + j * step;
+                        const z = domainMin + k * step;
+
+                        try {
+                            // Évaluer w = f(x, y, z)
+                            const w = eval(jsExpr);
+
+                            if (isFinite(w) && !isNaN(w)) {
+                                points.push({ x, y, z, w });
+                                wMin = Math.min(wMin, w);
+                                wMax = Math.max(wMax, w);
+                            }
+                        } catch (e) {
+                            // Ignorer les points qui causent des erreurs
+                        }
+                    }
+                }
+            }
+
+            if (points.length === 0) {
+                return `% Erreur: Impossible d'évaluer la fonction 4D: ${originalExpr}`;
+            }
+
+            // Construire la table de données
+            let tableData = 'x y z w\n';
+            points.forEach(p => {
+                tableData += `${p.x.toFixed(3)} ${p.y.toFixed(3)} ${p.z.toFixed(3)} ${p.w.toFixed(3)}\n`;
+            });
+
+            return `\`\`\`tikz
+\\usepackage{pgfplots}
+\\pgfplotsset{compat=1.16}
+
+\\begin{document}
+\\begin{tikzpicture}
+\\begin{axis}[
+    view={60}{30},
+    xlabel=$x$,
+    ylabel=$y$,
+    zlabel=$z$,
+    colorbar,
+    colorbar style={ylabel=$w$ (4ème dim)},
+    colormap/viridis,
+    width=12cm,
+    height=10cm,
+    title={$w = ${originalExpr.replace(/_/g, '\\_')}$}
+]
+\\addplot3[
+    scatter,
+    only marks,
+    mark=*,
+    mark size=2pt,
+    point meta=explicit,
+    scatter/use mapped color={draw=mapped color, fill=mapped color}
+] table[meta=w] {
+${tableData}};
+\\end{axis}
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
         }
 
         // ========================================
