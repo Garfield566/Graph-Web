@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur de Graphiques TikZ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            gap: 20px;
+            height: calc(100vh - 100px);
+        }
+
+        .panel {
+            flex: 1;
+            border-radius: 20px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        /* Panneau gauche - Zone de saisie */
+        .input-panel {
+            background: #f5e6c8;
+        }
+
+        .panel-title {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .input-panel .panel-title {
+            color: #5a4a3a;
+        }
+
+        .output-panel .panel-title {
+            color: #7cb99e;
+        }
+
+        .text-container {
+            flex: 1;
+            margin-bottom: 20px;
+            min-height: 0;
+        }
+
+        .input-area, .output-area {
+            width: 100%;
+            height: 100%;
+            padding: 15px;
+            border-radius: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            resize: none;
+            outline: none;
+        }
+
+        .input-area {
+            border: 3px solid #2c5aa0;
+            background: white;
+            transition: border-color 0.3s;
+        }
+
+        .input-area:focus {
+            border-color: #1a3d6e;
+        }
+
+        .input-area::placeholder {
+            color: #999;
+        }
+
+        .output-area {
+            border: none;
+            background: white;
+        }
+
+        /* Conteneur des boutons - centré */
+        .button-container {
+            display: flex;
+            justify-content: center;
+            padding: 10px 0;
+        }
+
+        .btn {
+            border: none;
+            padding: 14px 45px;
+            border-radius: 25px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-generate {
+            background: linear-gradient(135deg, #2d8a6e 0%, #1e6b52 100%);
+            color: white;
+        }
+
+        .btn-generate:hover {
+            box-shadow: 0 5px 20px rgba(45, 138, 110, 0.4);
+        }
+
+        .btn-generate:disabled {
+            background: #999;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-copy {
+            background: linear-gradient(135deg, #1a5276 0%, #0e3a53 100%);
+            color: white;
+        }
+
+        .btn-copy:hover {
+            box-shadow: 0 5px 20px rgba(26, 82, 118, 0.4);
+        }
+
+        /* Panneau droit - Zone de sortie */
+        .output-panel {
+            background: linear-gradient(180deg, #1e4d3d 0%, #0d2b22 100%);
+        }
+
+        /* Indicateur de chargement */
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(255,255,255,0.95);
+            padding: 30px;
+            border-radius: 15px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #2d8a6e;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #333;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 14px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: #2d8a6e;
+        }
+
+        .toast.error {
+            background: #c0392b;
+        }
+
+        /* Instructions */
+        .instructions {
+            margin-top: 10px;
+            padding: 12px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 10px;
+            font-size: 11px;
+            color: #5a4a3a;
+        }
+
+        .instructions h3 {
+            margin-bottom: 8px;
+            color: #3a2a1a;
+            font-size: 12px;
+        }
+
+        .instructions ul {
+            margin-left: 15px;
+            line-height: 1.6;
+        }
+
+        .instructions code {
+            background: #e8d8c8;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+            }
+            .panel {
+                min-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Générateur de Graphiques TikZ</h1>
+
+    <div class="container">
+        <!-- Panneau gauche - Entrée -->
+        <div class="panel input-panel">
+            <div class="panel-title">Entrez vos fonctions (une par ligne)</div>
+            <div class="text-container" style="position: relative;">
+                <textarea class="input-area" id="inputArea" placeholder="Exemples :
+
+x^2
+\sin(x)
+e^{-x}
+\ln(x)
+x^2 + y^2
+
+Formes géométriques :
+cercle_trigo(45)
+cercle_trigo_complet()
+triangle_rectangle(30, sin)
+triangle(3, 4, 5)
+polygone(6)
+cube()"></textarea>
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Génération en cours...</div>
+                </div>
+            </div>
+            <div class="button-container">
+                <button class="btn btn-generate" id="btnGenerate" onclick="generateGraphics()">Générer</button>
+            </div>
+
+            <div class="instructions">
+                <h3>Syntaxe supportée :</h3>
+                <ul>
+                    <li><strong>Fonctions :</strong> <code>x^2</code>, <code>\sin(x)</code>, <code>e^x</code>, <code>\ln(x)</code></li>
+                    <li><strong>Surfaces 3D :</strong> <code>x^2 + y^2</code></li>
+                    <li><strong>Intégrales :</strong> <code>\int_0^1 x^2 dx</code></li>
+                    <li><strong>Cercle trigo :</strong> <code>cercle_trigo(45)</code>, <code>cercle_trigo_complet()</code></li>
+                    <li><strong>Triangles :</strong> <code>triangle_rectangle(30, sin)</code>, <code>triangle(3,4,5)</code></li>
+                    <li><strong>Formes :</strong> <code>polygone(6)</code>, <code>cube()</code>, <code>pyramide()</code></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Panneau droit - Sortie -->
+        <div class="panel output-panel">
+            <div class="panel-title">Graphique</div>
+            <div class="text-container">
+                <textarea class="output-area" id="outputArea" readonly placeholder="Les graphiques TikZ générés apparaîtront ici...
+
+Copiez le code et collez-le dans Obsidian avec le plugin TikZJax installé."></textarea>
+            </div>
+            <div class="button-container">
+                <button class="btn btn-copy" onclick="copyToClipboard()">Copier</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        async function generateGraphics() {
+            const inputArea = document.getElementById('inputArea');
+            const outputArea = document.getElementById('outputArea');
+            const loading = document.getElementById('loading');
+            const btnGenerate = document.getElementById('btnGenerate');
+
+            const input = inputArea.value.trim();
+            if (!input) {
+                showToast('Veuillez entrer au moins une fonction', 'error');
+                return;
+            }
+
+            // Afficher le chargement
+            loading.classList.add('active');
+            btnGenerate.disabled = true;
+            outputArea.value = '';
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ functions: input })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    outputArea.value = data.result;
+                    showToast('Graphiques générés !', 'success');
+                } else {
+                    outputArea.value = 'Erreur: ' + data.error;
+                    showToast('Erreur lors de la génération', 'error');
+                }
+            } catch (error) {
+                outputArea.value = 'Erreur de connexion au serveur: ' + error.message;
+                showToast('Erreur de connexion', 'error');
+            } finally {
+                loading.classList.remove('active');
+                btnGenerate.disabled = false;
+            }
+        }
+
+        function copyToClipboard() {
+            const outputArea = document.getElementById('outputArea');
+            const text = outputArea.value;
+
+            if (!text || text.startsWith('Les graphiques')) {
+                showToast('Rien à copier', 'error');
+                return;
+            }
+
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copié dans le presse-papiers !', 'success');
+            }).catch(() => {
+                outputArea.select();
+                document.execCommand('copy');
+                showToast('Copié !', 'success');
+            });
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + type + ' show';
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Raccourci Ctrl+Enter
+        document.getElementById('inputArea').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                generateGraphics();
+            }
+        });
+    </script>
+</body>
+</html>
