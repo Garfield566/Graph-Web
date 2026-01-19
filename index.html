@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur de Graphiques TikZ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            gap: 20px;
+            height: calc(100vh - 100px);
+        }
+
+        .panel {
+            flex: 1;
+            border-radius: 20px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        /* Panneau gauche - Zone de saisie */
+        .input-panel {
+            background: #f5e6c8;
+        }
+
+        .panel-title {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .input-panel .panel-title {
+            color: #5a4a3a;
+        }
+
+        .output-panel .panel-title {
+            color: #7cb99e;
+        }
+
+        .text-container {
+            flex: 1;
+            margin-bottom: 20px;
+            min-height: 0;
+        }
+
+        .input-area, .output-area {
+            width: 100%;
+            height: 100%;
+            padding: 15px;
+            border-radius: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            resize: none;
+            outline: none;
+        }
+
+        .input-area {
+            border: 3px solid #2c5aa0;
+            background: white;
+            transition: border-color 0.3s;
+        }
+
+        .input-area:focus {
+            border-color: #1a3d6e;
+        }
+
+        .input-area::placeholder {
+            color: #999;
+        }
+
+        .output-area {
+            border: none;
+            background: white;
+        }
+
+        /* Conteneur des boutons - centré */
+        .button-container {
+            display: flex;
+            justify-content: center;
+            padding: 10px 0;
+        }
+
+        .btn {
+            border: none;
+            padding: 14px 45px;
+            border-radius: 25px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-generate {
+            background: linear-gradient(135deg, #2d8a6e 0%, #1e6b52 100%);
+            color: white;
+        }
+
+        .btn-generate:hover {
+            box-shadow: 0 5px 20px rgba(45, 138, 110, 0.4);
+        }
+
+        .btn-generate:disabled {
+            background: #999;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-copy {
+            background: linear-gradient(135deg, #1a5276 0%, #0e3a53 100%);
+            color: white;
+        }
+
+        .btn-copy:hover {
+            box-shadow: 0 5px 20px rgba(26, 82, 118, 0.4);
+        }
+
+        /* Panneau droit - Zone de sortie */
+        .output-panel {
+            background: linear-gradient(180deg, #1e4d3d 0%, #0d2b22 100%);
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #333;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 14px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: #2d8a6e;
+        }
+
+        .toast.error {
+            background: #c0392b;
+        }
+
+        /* Instructions */
+        .instructions {
+            margin-top: 10px;
+            padding: 12px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 10px;
+            font-size: 11px;
+            color: #5a4a3a;
+        }
+
+        .instructions h3 {
+            margin-bottom: 8px;
+            color: #3a2a1a;
+            font-size: 12px;
+        }
+
+        .instructions ul {
+            margin-left: 15px;
+            line-height: 1.6;
+        }
+
+        .instructions code {
+            background: #e8d8c8;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+            }
+            .panel {
+                min-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Générateur de Graphiques TikZ</h1>
+
+    <div class="container">
+        <!-- Panneau gauche - Entrée -->
+        <div class="panel input-panel">
+            <div class="panel-title">Entrez vos fonctions (une par ligne)</div>
+            <div class="text-container">
+                <textarea class="input-area" id="inputArea" placeholder="Exemples :
+
+x^2
+sin(x)
+e^(-x)
+ln(x)
+x^2 + y^2
+
+Formes géométriques :
+cercle_trigo(45)
+cercle_trigo_complet()
+triangle_rectangle(30, sin)
+triangle(3, 4, 5)
+polygone(6)
+cube()"></textarea>
+            </div>
+            <div class="button-container">
+                <button class="btn btn-generate" id="btnGenerate" onclick="generateGraphics()">Générer</button>
+            </div>
+
+            <div class="instructions">
+                <h3>Syntaxe supportée :</h3>
+                <ul>
+                    <li><strong>Fonctions :</strong> <code>x^2</code>, <code>sin(x)</code>, <code>cos(x)</code>, <code>e^x</code>, <code>ln(x)</code></li>
+                    <li><strong>Surfaces 3D :</strong> <code>x^2 + y^2</code></li>
+                    <li><strong>Cercle trigo :</strong> <code>cercle_trigo(45)</code>, <code>cercle_trigo_complet()</code></li>
+                    <li><strong>Triangles :</strong> <code>triangle_rectangle(30, sin)</code>, <code>triangle(3,4,5)</code></li>
+                    <li><strong>Formes :</strong> <code>polygone(6)</code>, <code>cube()</code>, <code>pyramide()</code></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Panneau droit - Sortie -->
+        <div class="panel output-panel">
+            <div class="panel-title">Graphique</div>
+            <div class="text-container">
+                <textarea class="output-area" id="outputArea" readonly placeholder="Les graphiques TikZ générés apparaîtront ici...
+
+Copiez le code et collez-le dans Obsidian avec le plugin TikZJax installé."></textarea>
+            </div>
+            <div class="button-container">
+                <button class="btn btn-copy" onclick="copyToClipboard()">Copier</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ========================================
+        // GÉNÉRATEUR DE GRAPHIQUES TIKZ
+        // Version JavaScript (sans serveur)
+        // ========================================
+
+        function generateGraphics() {
+            const inputArea = document.getElementById('inputArea');
+            const outputArea = document.getElementById('outputArea');
+            const btnGenerate = document.getElementById('btnGenerate');
+
+            const input = inputArea.value.trim();
+            if (!input) {
+                showToast('Veuillez entrer au moins une fonction', 'error');
+                return;
+            }
+
+            btnGenerate.disabled = true;
+            outputArea.value = '';
+
+            try {
+                const lines = input.split('\n').filter(line => {
+                    const trimmed = line.trim();
+                    return trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('//');
+                });
+
+                const results = [];
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    const result = generateSingle(trimmedLine);
+                    if (result) {
+                        results.push(`% === ${trimmedLine} ===\n${result}`);
+                    }
+                }
+
+                if (results.length > 0) {
+                    outputArea.value = results.join('\n\n');
+                    showToast('Graphiques générés !', 'success');
+                } else {
+                    outputArea.value = '% Aucune fonction valide trouvée';
+                    showToast('Aucune fonction reconnue', 'error');
+                }
+            } catch (error) {
+                outputArea.value = '% Erreur: ' + error.message;
+                showToast('Erreur lors de la génération', 'error');
+            } finally {
+                btnGenerate.disabled = false;
+            }
+        }
+
+        function generateSingle(line) {
+            const lowerLine = line.toLowerCase().trim();
+
+            // Formes géométriques
+            let match;
+
+            // Cercle trigonométrique complet
+            if (lowerLine.includes('cercle_trigo_complet')) {
+                return generateCercleTrigoComplet();
+            }
+
+            // Cercle trigonométrique simple
+            match = lowerLine.match(/cercle_trigo\s*\(\s*(\d+)\s*\)/);
+            if (match) {
+                return generateCercleTrigo(parseInt(match[1]));
+            }
+
+            // Triangle rectangle
+            match = lowerLine.match(/triangle_rectangle\s*\(\s*(\d+)\s*(?:,\s*(\w+))?\s*\)/);
+            if (match) {
+                const angle = parseInt(match[1]);
+                const formule = match[2] || 'sin';
+                return generateTriangleRectangle(angle, formule);
+            }
+
+            // Triangle quelconque
+            match = lowerLine.match(/triangle\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)/);
+            if (match) {
+                return generateTriangle(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]));
+            }
+
+            // Polygone
+            match = lowerLine.match(/polygone\s*\(\s*(\d+)\s*\)/);
+            if (match) {
+                return generatePolygone(parseInt(match[1]));
+            }
+
+            // Cube
+            if (lowerLine.includes('cube')) {
+                return generateCube();
+            }
+
+            // Pyramide
+            if (lowerLine.includes('pyramide')) {
+                return generatePyramide();
+            }
+
+            // Fonction mathématique
+            return generateFunction(line);
+        }
+
+        // ========================================
+        // GÉNÉRATEURS DE FORMES
+        // ========================================
+
+        function generateCercleTrigo(angleDeg) {
+            const angleRad = angleDeg * Math.PI / 180;
+            const x = Math.cos(angleRad).toFixed(3);
+            const y = Math.sin(angleRad).toFixed(3);
+
+            return `\`\`\`tikz
+\\begin{document}
+\\begin{tikzpicture}[scale=3]
+  % Axes
+  \\draw[->] (-1.3,0) -- (1.3,0) node[right] {$x$};
+  \\draw[->] (0,-1.3) -- (0,1.3) node[above] {$y$};
+
+  % Cercle unitaire
+  \\draw[thick] (0,0) circle (1);
+
+  % Angle
+  \\draw[very thick, red] (0.4,0) arc (0:${angleDeg}:0.4);
+  \\node[red] at (0.5,0.2) {$\\theta$};
+
+  % Rayon
+  \\draw[thick, blue] (0,0) -- (${x},${y});
+  \\fill[blue] (${x},${y}) circle (0.03);
+  \\node[blue, above right] at (${x},${y}) {$M$};
+
+  % Projections
+  \\draw[dashed, red] (${x},0) -- (${x},${y});
+  \\draw[very thick, green!60!black] (0,0) -- (${x},0);
+  \\node[green!60!black, below] at (${x/2},0) {$\\cos(\\theta)$};
+  \\draw[thick, orange] (0,0) -- (0,${y});
+  \\node[orange, left] at (0,${y/2}) {$\\sin(\\theta)$};
+
+  % Graduations
+  \\node[below left] at (0,0) {$O$};
+  \\node[below] at (1,0) {$1$};
+  \\node[left] at (0,1) {$1$};
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+        }
+
+        function generateCercleTrigoComplet() {
+            const angles = [
+                { deg: 0, rad: '0', cos: '1', sin: '0' },
+                { deg: 30, rad: '\\frac{\\pi}{6}', cos: '\\frac{\\sqrt{3}}{2}', sin: '\\frac{1}{2}' },
+                { deg: 45, rad: '\\frac{\\pi}{4}', cos: '\\frac{\\sqrt{2}}{2}', sin: '\\frac{\\sqrt{2}}{2}' },
+                { deg: 60, rad: '\\frac{\\pi}{3}', cos: '\\frac{1}{2}', sin: '\\frac{\\sqrt{3}}{2}' },
+                { deg: 90, rad: '\\frac{\\pi}{2}', cos: '0', sin: '1' },
+                { deg: 180, rad: '\\pi', cos: '-1', sin: '0' },
+                { deg: 270, rad: '\\frac{3\\pi}{2}', cos: '0', sin: '-1' }
+            ];
+
+            let points = '';
+            const colors = ['red', 'blue', 'green!60!black', 'purple', 'orange', 'brown', 'cyan'];
+
+            angles.forEach((a, i) => {
+                const x = Math.cos(a.deg * Math.PI / 180).toFixed(3);
+                const y = Math.sin(a.deg * Math.PI / 180).toFixed(3);
+                const color = colors[i % colors.length];
+                const labelDist = 1.25;
+                const lx = (labelDist * Math.cos(a.deg * Math.PI / 180)).toFixed(2);
+                const ly = (labelDist * Math.sin(a.deg * Math.PI / 180)).toFixed(2);
+
+                points += `  \\draw[${color}] (0,0) -- (${x},${y});
+  \\fill[${color}] (${x},${y}) circle (0.02);
+  \\node[${color}, fill=white] at (${lx},${ly}) {$${a.rad}$};
+`;
+            });
+
+            return `\`\`\`tikz
+\\begin{document}
+\\begin{tikzpicture}[scale=4]
+  % Axes
+  \\draw[->] (-1.4,0) -- (1.4,0) node[right] {$x$};
+  \\draw[->] (0,-1.4) -- (0,1.4) node[above] {$y$};
+
+  % Cercle unitaire
+  \\draw[very thick, blue] (0,0) circle (1);
+
+  % Centre
+  \\node[below left] at (0,0) {$O$};
+
+  % Points remarquables
+${points}
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+        }
+
+        function generateTriangleRectangle(angleDeg, formule) {
+            const angleRad = angleDeg * Math.PI / 180;
+            const hyp = 3;
+            const adj = (hyp * Math.cos(angleRad)).toFixed(2);
+            const opp = (hyp * Math.sin(angleRad)).toFixed(2);
+
+            let formulaText = '';
+            if (formule === 'sin') {
+                formulaText = '$\\sin(\\theta) = \\frac{\\text{opposé}}{\\text{hypoténuse}}$';
+            } else if (formule === 'cos') {
+                formulaText = '$\\cos(\\theta) = \\frac{\\text{adjacent}}{\\text{hypoténuse}}$';
+            } else {
+                formulaText = '$\\tan(\\theta) = \\frac{\\text{opposé}}{\\text{adjacent}}$';
+            }
+
+            return `\`\`\`tikz
+\\begin{document}
+\\begin{tikzpicture}[scale=2]
+  % Triangle rectangle
+  \\draw[very thick] (0,0) -- (${adj},0) -- (${adj},${opp}) -- cycle;
+
+  % Angle droit
+  \\draw (${adj},0) -- (${adj-0.2},0) -- (${adj-0.2},0.2) -- (${adj},0.2);
+
+  % Arc pour l'angle
+  \\draw[very thick, red] (0.5,0) arc (0:${angleDeg}:0.5);
+  \\node[red] at (0.7,0.15) {$\\theta$};
+
+  % Labels des côtés
+  \\node[below] at (${adj/2},0) {adjacent};
+  \\node[right] at (${adj},${opp/2}) {opposé};
+  \\node[above left] at (${adj/2},${opp/2}) {hypoténuse};
+
+  % Formule
+  \\node[below] at (${adj/2},-0.8) {${formulaText}};
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+        }
+
+        function generateTriangle(a, b, c) {
+            // Vérifier inégalité triangulaire
+            if (a + b <= c || a + c <= b || b + c <= a) {
+                return `% Erreur: Ces côtés ne forment pas un triangle valide (${a}, ${b}, ${c})`;
+            }
+
+            const angleA = Math.acos((b*b + c*c - a*a) / (2*b*c));
+            const Cx = (b * Math.cos(angleA)).toFixed(2);
+            const Cy = (b * Math.sin(angleA)).toFixed(2);
+
+            return `\`\`\`tikz
+\\begin{document}
+\\begin{tikzpicture}[scale=1.2]
+  % Triangle
+  \\draw[very thick] (0,0) -- (${c},0) -- (${Cx},${Cy}) -- cycle;
+
+  % Points
+  \\fill (0,0) circle (0.05);
+  \\fill (${c},0) circle (0.05);
+  \\fill (${Cx},${Cy}) circle (0.05);
+
+  % Labels
+  \\node[below left] at (0,0) {$A$};
+  \\node[below right] at (${c},0) {$B$};
+  \\node[above] at (${Cx},${Cy}) {$C$};
+
+  % Côtés
+  \\node[below] at (${c/2},0) {$c = ${c}$};
+  \\node[left] at (${Cx/2},${Cy/2}) {$b = ${b}$};
+  \\node[right] at (${(parseFloat(c)+parseFloat(Cx))/2},${Cy/2}) {$a = ${a}$};
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+        }
+
+        function generatePolygone(n) {
+            if (n < 3) n = 3;
+            if (n > 12) n = 12;
+
+            const rayon = 2;
+            let vertices = '';
+            let edges = '';
+
+            for (let i = 0; i < n; i++) {
+                const angle = 2 * Math.PI * i / n - Math.PI / 2;
+                const x = (rayon * Math.cos(angle)).toFixed(2);
+                const y = (rayon * Math.sin(angle)).toFixed(2);
+                const nextAngle = 2 * Math.PI * ((i + 1) % n) / n - Math.PI / 2;
+                const nx = (rayon * Math.cos(nextAngle)).toFixed(2);
+                const ny = (rayon * Math.sin(nextAngle)).toFixed(2);
+
+                edges += `  \\draw[very thick] (${x},${y}) -- (${nx},${ny});\n`;
+                vertices += `  \\fill (${x},${y}) circle (0.05);\n`;
+            }
+
+            return `\`\`\`tikz
+\\begin{document}
+\\begin{tikzpicture}[scale=1.3]
+${edges}${vertices}
+  % Centre
+  \\fill[red] (0,0) circle (0.05);
+  \\node[red, below] at (0,0) {$O$};
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+        }
+
+        function generateCube() {
+            return `\`\`\`tikz
+\\begin{document}
+\\begin{tikzpicture}[scale=1.5]
+  % Face avant
+  \\draw[very thick] (0,0) -- (2,0) -- (2,2) -- (0,2) -- cycle;
+
+  % Face arrière
+  \\draw[very thick] (0.6,0.6) -- (2.6,0.6) -- (2.6,2.6) -- (0.6,2.6) -- cycle;
+
+  % Arêtes
+  \\draw[very thick] (0,0) -- (0.6,0.6);
+  \\draw[very thick] (2,0) -- (2.6,0.6);
+  \\draw[very thick] (2,2) -- (2.6,2.6);
+  \\draw[very thick] (0,2) -- (0.6,2.6);
+
+  % Labels
+  \\node[below left] at (0,0) {$A$};
+  \\node[below right] at (2,0) {$B$};
+  \\node[above right] at (2,2) {$C$};
+  \\node[above left] at (0,2) {$D$};
+  \\node[below left] at (0.6,0.6) {$E$};
+  \\node[below right] at (2.6,0.6) {$F$};
+  \\node[above right] at (2.6,2.6) {$G$};
+  \\node[above left] at (0.6,2.6) {$H$};
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+        }
+
+        function generatePyramide() {
+            return `\`\`\`tikz
+\\begin{document}
+\\begin{tikzpicture}[scale=1.5]
+  % Base
+  \\draw[very thick] (0,0) -- (2,0) -- (2,2) -- (0,2) -- cycle;
+
+  % Sommet
+  \\coordinate (S) at (1,3.5);
+
+  % Arêtes vers le sommet
+  \\draw[very thick] (0,0) -- (S);
+  \\draw[very thick] (2,0) -- (S);
+  \\draw[very thick] (2,2) -- (S);
+  \\draw[very thick] (0,2) -- (S);
+
+  % Labels
+  \\node[below left] at (0,0) {$A$};
+  \\node[below right] at (2,0) {$B$};
+  \\node[above right] at (2,2) {$C$};
+  \\node[above left] at (0,2) {$D$};
+  \\fill (S) circle (0.05);
+  \\node[above] at (S) {$S$};
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+        }
+
+        // ========================================
+        // GÉNÉRATEUR DE FONCTIONS MATHÉMATIQUES
+        // ========================================
+
+        function generateFunction(expr) {
+            // Nettoyer l'expression
+            let cleanExpr = expr.trim();
+
+            // Détecter les variables
+            const hasY = /\by\b/.test(cleanExpr);
+            const hasX = /\bx\b/.test(cleanExpr);
+
+            // Convertir notation LaTeX vers TikZ
+            let tikzExpr = cleanExpr
+                .replace(/\\sin/g, 'sin')
+                .replace(/\\cos/g, 'cos')
+                .replace(/\\tan/g, 'tan')
+                .replace(/\\ln/g, 'ln')
+                .replace(/\\log/g, 'log')
+                .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')
+                .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)')
+                .replace(/e\^{([^}]+)}/g, 'exp($1)')
+                .replace(/e\^([a-zA-Z0-9-]+)/g, 'exp($1)')
+                .replace(/\^/g, '^');
+
+            // Convertir sin/cos pour TikZ (degrés)
+            tikzExpr = tikzExpr
+                .replace(/sin\(([^)]+)\)/g, 'sin(deg($1))')
+                .replace(/cos\(([^)]+)\)/g, 'cos(deg($1))')
+                .replace(/tan\(([^)]+)\)/g, 'tan(deg($1))');
+
+            // Calculer le domaine adaptatif
+            let domainMin = -5, domainMax = 5;
+
+            if (/ln|log/.test(cleanExpr)) {
+                domainMin = 0.1;
+                domainMax = 10;
+            } else if (/sqrt/.test(cleanExpr)) {
+                domainMin = 0;
+                domainMax = 10;
+            } else if (/exp|e\^/.test(cleanExpr)) {
+                domainMin = -3;
+                domainMax = 3;
+            } else if (/sin|cos/.test(cleanExpr)) {
+                domainMin = -6.28;
+                domainMax = 6.28;
+            } else if (/tan/.test(cleanExpr)) {
+                domainMin = -1.4;
+                domainMax = 1.4;
+            }
+
+            if (hasY) {
+                // Fonction 3D
+                return `\`\`\`tikz
+\\usepackage{pgfplots}
+\\pgfplotsset{compat=1.16}
+
+\\begin{document}
+\\begin{tikzpicture}
+\\begin{axis}[
+    view={60}{30},
+    xlabel=$x$,
+    ylabel=$y$,
+    zlabel=$z$,
+    colormap/cool,
+    width=10cm,
+    height=8cm
+]
+\\addplot3[
+    surf,
+    samples=20,
+    domain=${domainMin}:${domainMax},
+    y domain=${domainMin}:${domainMax}
+] {${tikzExpr}};
+\\end{axis}
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+            } else {
+                // Fonction 2D
+                return `\`\`\`tikz
+\\usepackage{pgfplots}
+\\pgfplotsset{compat=1.16}
+
+\\begin{document}
+\\begin{tikzpicture}
+\\begin{axis}[
+    axis lines=middle,
+    grid=both,
+    domain=${domainMin}:${domainMax},
+    samples=200,
+    xlabel={$x$},
+    ylabel={$f(x)$},
+    width=10cm,
+    height=7cm
+]
+\\addplot[blue, thick] {${tikzExpr}};
+\\end{axis}
+\\end{tikzpicture}
+\\end{document}
+\`\`\``;
+            }
+        }
+
+        // ========================================
+        // UTILITAIRES
+        // ========================================
+
+        function copyToClipboard() {
+            const outputArea = document.getElementById('outputArea');
+            const text = outputArea.value;
+
+            if (!text || text.startsWith('% Aucune') || text.startsWith('Les graphiques')) {
+                showToast('Rien à copier', 'error');
+                return;
+            }
+
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copié dans le presse-papiers !', 'success');
+            }).catch(() => {
+                outputArea.select();
+                document.execCommand('copy');
+                showToast('Copié !', 'success');
+            });
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + type + ' show';
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Raccourci Ctrl+Enter
+        document.getElementById('inputArea').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                generateGraphics();
+            }
+        });
+    </script>
+</body>
+</html>
